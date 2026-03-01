@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#07070d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BETATESTER">
+  <title>BETATESTER — Voice AI Agent</title>
+
+  <!-- PWA Manifest inline -->
+  <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22BETATESTER%20AI%22%2C%22short_name%22%3A%22BETATESTER%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2307070d%22%2C%22theme_color%22%3A%22%2300ff88%22%7D">
+
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { height:100%; overflow:hidden; background:#07070d; font-family:'Courier New', monospace; }
+
+    @keyframes bounce    { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-7px)} }
+    @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes slideIn   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes glow      { 0%,100%{box-shadow:0 0 14px rgba(0,255,136,.35)} 50%{box-shadow:0 0 32px rgba(0,255,136,.9)} }
+    @keyframes wakeGlow  { 0%,100%{box-shadow:0 0 20px rgba(0,255,136,.4)} 50%{box-shadow:0 0 55px rgba(0,255,136,1)} }
+    @keyframes micPulse  { 0%{box-shadow:0 0 0 0 rgba(255,60,60,.7)} 70%{box-shadow:0 0 0 16px rgba(255,60,60,0)} 100%{box-shadow:0 0 0 0 rgba(255,60,60,0)} }
+    @keyframes wave      { from{transform:scaleY(.4)} to{transform:scaleY(1)} }
+    @keyframes ripple    { 0%{transform:scale(1);opacity:.7} 100%{transform:scale(2.8);opacity:0} }
+    @keyframes nameFlash { 0%,100%{color:#00ff88} 50%{color:#fff;text-shadow:0 0 20px rgba(0,255,136,1)} }
+    @keyframes shake     { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+    @keyframes wakeBar   { 0%,100%{background:rgba(0,255,136,.05)} 50%{background:rgba(0,255,136,.15)} }
+
+    #app { height:100%; display:flex; flex-direction:column; max-width:430px; margin:0 auto; }
+
+    /* STATUS BAR */
+    #statusBar { background:#08080f; padding:env(safe-area-inset-top,12px) 20px 8px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+    #statusTime { color:#00ff88; font-size:12px; font-weight:bold; }
+    #statusRight { display:flex; gap:8px; align-items:center; font-size:10px; }
+
+    /* LOCK SCREEN */
+    #lockScreen { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:20px 20px 16px; background:linear-gradient(180deg,#0a0a18 0%,#0c0c13 100%); overflow:hidden; }
+    #lockTime { color:#fff; font-size:52px; font-weight:200; letter-spacing:-2px; text-align:center; line-height:1; }
+    #lockDate { color:rgba(255,255,255,.55); font-size:13px; margin-top:6px; text-align:center; }
+    #lockStatus { color:#00ff88; font-size:12px; margin-top:10px; text-align:center; }
+    #pinDots { display:flex; gap:14px; justify-content:center; margin-bottom:20px; }
+    .pinDot { width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,.2); border:2px solid rgba(255,255,255,.3); transition:all .2s; }
+    .pinDot.filled { background:#fff; }
+    .pinDot.error  { border-color:#ff4444; background:#ff4444; }
+    .pinDot.ok     { border-color:#00ff88; background:#00ff88; }
+    #numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:240px; }
+    .numBtn { height:56px; border-radius:28px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); color:#fff; font-size:20px; font-weight:300; cursor:pointer; transition:all .15s; font-family:'Courier New',monospace; }
+    .numBtn:active { transform:scale(.93); background:rgba(255,255,255,.18); }
+    .numBtn.empty  { background:transparent; border-color:transparent; cursor:default; }
+    #voicePin { color:rgba(255,255,255,.4); font-size:11px; text-align:center; margin-bottom:12px; }
+    .pinShake { animation:shake .4s ease; }
+
+    /* HOME SCREEN */
+    #homeScreen { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+    /* AGENT HEADER */
+    #agentHeader { padding:10px 14px 8px; border-bottom:1px solid rgba(0,255,136,.07); flex-shrink:0; }
+    #agentHeaderInner { display:flex; align-items:center; justify-content:space-between; }
+    #avatar { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#00ff88,#00aaff); display:flex; align-items:center; justify-content:center; font-size:19px; animation:glow 2s ease-in-out infinite; flex-shrink:0; position:relative; }
+    #agentName { color:#00ff88; font-weight:bold; font-size:12px; letter-spacing:1px; }
+    #agentStatus { color:#34d399; font-size:9px; display:flex; align-items:center; gap:3px; }
+    .statusDot { width:4px; height:4px; border-radius:50%; background:#00ff88; animation:pulse 1.5s infinite; }
+    #headerBtns { display:flex; gap:5px; }
+    .hBtn { border-radius:14px; padding:4px 8px; cursor:pointer; font-size:9px; font-family:'Courier New',monospace; }
+
+    /* WAKE BANNER */
+    #wakeBanner { display:none; background:linear-gradient(90deg,rgba(0,255,136,.15),rgba(0,200,255,.1),rgba(0,255,136,.15)); border-bottom:1px solid rgba(0,255,136,.3); padding:7px 18px; text-align:center; color:#00ff88; font-size:12px; font-weight:bold; letter-spacing:2px; animation:wakeBar .4s ease-in-out infinite; }
+
+    /* APP GRID */
+    #appGrid { padding:8px 12px 6px; background:#08080f; border-bottom:1px solid rgba(255,255,255,.03); flex-shrink:0; }
+    #appGridLabel { color:#333; font-size:8px; letter-spacing:2px; margin-bottom:6px; }
+    #appGridInner { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .appBtn { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:7px 3px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all .2s; font-family:'Courier New',monospace; }
+    .appBtn:active { transform:scale(.92); filter:brightness(1.4); }
+    .appIcon { font-size:18px; }
+    .appLabel { font-size:8px; color:#555; }
+
+    /* CHAT */
+    #chat { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+    .msgWrap { display:flex; animation:slideIn .3s ease; }
+    .msgWrap.user { justify-content:flex-end; }
+    .msgWrap.ai   { justify-content:flex-start; }
+    .bubble { max-width:82%; padding:9px 13px; font-size:12px; line-height:1.6; white-space:pre-wrap; }
+    .bubble.user  { background:linear-gradient(135deg,#00ff88,#00cc60); color:#000; border-radius:18px 18px 4px 18px; }
+    .bubble.voice { background:linear-gradient(135deg,#cc2200,#ff5533); color:#fff; border-radius:18px 18px 4px 18px; }
+    .bubble.ai    { background:rgba(255,255,255,.05); color:#ddd; border-radius:18px 18px 18px 4px; border:1px solid rgba(0,255,136,.07); }
+    .msgTime { font-size:8px; margin-top:3px; opacity:.5; text-align:right; }
+    #typingDots { display:none; background:rgba(255,255,255,.05); border-radius:18px; padding:12px 16px; width:fit-content; gap:5px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#00ff88; }
+
+    /* WAVE VIZ */
+    #waveViz { display:none; padding:7px 18px; flex-direction:column; align-items:center; gap:4px; flex-shrink:0; }
+    .waveBar { width:3px; border-radius:2px; background:#00ff88; height:4px; transition:height .3s,background .3s; }
+    #waveText { font-size:10px; color:#00ff88; }
+
+    /* INPUT BAR */
+    #inputBar { padding:9px 12px; background:#08080f; border-top:1px solid rgba(0,255,136,.07); display:flex; gap:6px; align-items:center; flex-shrink:0; padding-bottom:max(9px,env(safe-area-inset-bottom)); }
+    #micWrap { position:relative; flex-shrink:0; }
+    #micBtn { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.05); border:2px solid rgba(0,255,136,.25); cursor:pointer; font-size:19px; display:flex; align-items:center; justify-content:center; transition:all .3s; font-family:'Courier New',monospace; }
+    #micBtn.listening { background:linear-gradient(135deg,#cc2200,#ff5533); border-color:#ff4444; animation:micPulse 1s ease-out infinite; }
+    #textInput { flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(0,255,136,.12); border-radius:22px; padding:9px 13px; color:#ddd; font-size:11.5px; outline:none; font-family:'Courier New',monospace; }
+    #sendBtn { width:40px; height:40px; border-radius:50%; background:#00ff88; border:none; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; }
+    #sendBtn:active { background:#00cc70; transform:scale(.93); }
+    #inputHint { padding:3px 16px 7px; background:#08080f; text-align:center; color:#1a1a2a; font-size:8px; flex-shrink:0; }
+
+    /* HOME BAR */
+    #homeBar { height:20px; background:#08080f; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    #homeBarLine { width:70px; height:3px; border-radius:2px; background:rgba(255,255,255,.12); }
+
+    /* MODALS */
+    .modal { position:fixed; inset:0; z-index:200; display:none; flex-direction:column; }
+    .modal.open { display:flex; }
+    #googleModal { background:#fff; }
+    #googleHeader { background:#fff; padding:12px 14px; border-bottom:1px solid #eee; }
+    #googleSearchBar { display:flex; align-items:center; gap:8px; background:#f1f3f4; border-radius:24px; padding:8px 14px; }
+    #googleQuery { font-size:13px; color:#222; flex:1; }
+    #googleTabs { display:flex; gap:12px; margin-top:8px; padding-left:4px; }
+    .gTab { font-size:11px; color:#666; padding-bottom:4px; cursor:pointer; }
+    .gTab.active { color:#1a73e8; border-bottom:2px solid #1a73e8; }
+    #googleResults { flex:1; overflow-y:auto; padding:8px 14px; background:#fff; }
+    .gResult { margin-bottom:20px; }
+    .gUrl   { color:#202124; font-size:11px; margin-bottom:2px; }
+    .gTitle { color:#1a0dab; font-size:14px; font-weight:bold; margin-bottom:4px; cursor:pointer; }
+    .gDesc  { color:#4d5156; font-size:12px; line-height:1.5; }
+    .gCount { color:#70757a; font-size:11px; margin-bottom:10px; }
+
+    #waModal { background:#075e54; }
+    #waHeader { background:#075e54; padding:16px 14px 10px; display:flex; align-items:center; gap:10px; }
+    #waBody { flex:1; background:#ece5dd; padding:14px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+    .waCard { background:#fff; border-radius:12px; padding:12px; }
+    .waCardTitle { font-size:12px; color:#666; margin-bottom:8px; }
+    .contacts { display:flex; flex-wrap:wrap; gap:6px; }
+    .contactBtn { border:none; border-radius:16px; padding:5px 12px; cursor:pointer; font-size:12px; transition:all .2s; }
+    .contactBtn.sel { background:#25d366; color:#fff; }
+    .contactBtn.unsel { background:#f0f0f0; color:#333; }
+    #waMsgArea { width:100%; min-height:80px; border:1px solid #ddd; border-radius:8px; padding:8px; font-size:13px; font-family:'Courier New',monospace; resize:none; outline:none; }
+    #waSendBtn { background:#25d366; color:#fff; border:none; border-radius:12px; padding:14px; font-size:14px; font-weight:bold; cursor:pointer; }
+    #waSendBtn.disabled { background:#aaa; }
+
+    #emailModal { background:#fff; }
+    #emailHeader { background:#ea4335; padding:14px 16px; display:flex; align-items:center; gap:10px; }
+    #emailBody { flex:1; padding:14px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; background:#fff; }
+    .emailField { border-bottom:1px solid #eee; padding-bottom:8px; }
+    .emailLabel { font-size:11px; color:#888; margin-bottom:4px; }
+    .emailInput { width:100%; border:none; font-size:13px; outline:none; color:#222; font-family:'Courier New',monospace; background:transparent; }
+    #emailBodyText { flex:1; border:none; font-size:13px; outline:none; resize:none; color:#222; font-family:'Courier New',monospace; min-height:140px; background:transparent; width:100%; }
+    #emailSendBtn { background:#ea4335; color:#fff; border:none; border-radius:12px; padding:14px; font-size:14px; font-weight:bold; cursor:pointer; }
+    #emailSendBtn.disabled { background:#aaa; }
+
+    .backBtn { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; }
+    .closeBtn { background:none; border:none; font-size:16px; cursor:pointer; color:#666; }
+    .sentMsg { background:#25d366; border-radius:12px; padding:14px; text-align:center; color:#fff; font-weight:bold; display:none; }
+
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-thumb { background:#00ff8830; border-radius:4px; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- STATUS BAR -->
+  <div id="statusBar">
+    <div id="statusTime">00:00:00</div>
+    <div id="statusRight">
+      <span style="color:#60a5fa">5G</span>
+      <span>📶</span>
+      <span id="battTxt" style="color:#fbbf24">72%🔋</span>
+      <span id="lockIcon">🔒</span>
+    </div>
+  </div>
+
+  <!-- ══ LOCK SCREEN ══ -->
+  <div id="lockScreen">
+    <div style="text-align:center;margin-top:8px">
+      <div id="lockTime">00:00</div>
+      <div id="lockDate">Somvar, 1 March</div>
+      <div id="lockStatus">🔒 BETATESTER locked</div>
+    </div>
+
+    <div>
+      <div id="voicePin">🎤 Ek ek digit bolo ya numpad use karo</div>
+      <div id="pinDots">
+        <div class="pinDot" id="pd0"></div>
+        <div class="pinDot" id="pd1"></div>
+        <div class="pinDot" id="pd2"></div>
+        <div class="pinDot" id="pd3"></div>
+      </div>
+      <div id="numpad">
+        <button class="numBtn" onclick="pressPin(1)">1</button>
+        <button class="numBtn" onclick="pressPin(2)">2</button>
+        <button class="numBtn" onclick="pressPin(3)">3</button>
+        <button class="numBtn" onclick="pressPin(4)">4</button>
+        <button class="numBtn" onclick="pressPin(5)">5</button>
+        <button class="numBtn" onclick="pressPin(6)">6</button>
+        <button class="numBtn" onclick="pressPin(7)">7</button>
+        <button class="numBtn" onclick="pressPin(8)">8</button>
+        <button class="numBtn" onclick="pressPin(9)">9</button>
+        <button class="numBtn empty"></button>
+        <button class="numBtn" onclick="pressPin(0)">0</button>
+        <button class="numBtn" onclick="backspacePin()">⌫</button>
+      </div>
+    </div>
+
+    <div style="color:rgba(255,255,255,.3);font-size:10px">↑ PIN: 1 2 3 4 (default)</div>
+  </div>
+
+  <!-- ══ HOME SCREEN ══ -->
+  <div id="homeScreen" style="display:none">
+
+    <!-- Agent Header -->
+    <div id="agentHeader">
+      <div id="agentHeaderInner">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="position:relative">
+            <div id="avatar">🤖</div>
+          </div>
+          <div>
+            <div id="agentName">BETATESTER</div>
+            <div id="agentStatus"><div class="statusDot"></div><span id="statusText">Ready</span></div>
+          </div>
+        </div>
+        <div id="headerBtns">
+          <button class="hBtn" id="voiceToggle" onclick="toggleVoice()" style="background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.35);color:#00ff88">🔊</button>
+          <button class="hBtn" id="alwaysToggle" onclick="toggleAlways()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#555">👁️</button>
+          <button class="hBtn" onclick="lockPhone()" style="background:rgba(255,100,0,.1);border:1px solid rgba(255,100,0,.3);color:#ff8844">🔒</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wake Banner -->
+    <div id="wakeBanner">✨ HEY BETATESTER DETECTED! ✨</div>
+
+    <!-- App Grid -->
+    <div id="appGrid">
+      <div id="appGridLabel">APPS & COMMANDS</div>
+      <div id="appGridInner">
+        <button class="appBtn" onclick="openGoogle('')"><div class="appIcon">🔍</div><div class="appLabel">Google</div></button>
+        <button class="appBtn" onclick="openWhatsApp('')"><div class="appIcon">💚</div><div class="appLabel">WhatsApp</div></button>
+        <button class="appBtn" onclick="openEmail('')"><div class="appIcon">📧</div><div class="appLabel">Email</div></button>
+        <button class="appBtn" onclick="quickCmd('call')"><div class="appIcon">📞</div><div class="appLabel">Call</div></button>
+        <button class="appBtn" onclick="quickCmd('camera')"><div class="appIcon">📷</div><div class="appLabel">Camera</div></button>
+        <button class="appBtn" onclick="quickCmd('music')"><div class="appIcon">🎵</div><div class="appLabel">Music</div></button>
+        <button class="appBtn" onclick="quickCmd('alarm')"><div class="appIcon">⏰</div><div class="appLabel">Alarm</div></button>
+        <button class="appBtn" onclick="quickCmd('weather')"><div class="appIcon">🌤️</div><div class="appLabel">Weather</div></button>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat"></div>
+
+    <!-- Typing dots -->
+    <div id="typingDots" style="padding:4px 12px;flex-shrink:0">
+      <div style="background:rgba(255,255,255,.05);border-radius:18px;padding:12px 16px;display:flex;gap:5px;width:fit-content">
+        <div class="dot" style="animation:bounce 1.2s ease-in-out 0s infinite"></div>
+        <div class="dot" style="animation:bounce 1.2s ease-in-out .2s infinite"></div>
+        <div class="dot" style="animation:bounce 1.2s ease-in-out .4s infinite"></div>
+      </div>
+    </div>
+
+    <!-- Wave Viz -->
+    <div id="waveViz">
+      <div style="display:flex;align-items:center;justify-content:center;gap:3px;height:30px" id="waveBars"></div>
+      <div id="waveText">Bol dijiye... 🎙️</div>
+    </div>
+
+    <!-- Input Bar -->
+    <div id="inputBar">
+      <div id="micWrap">
+        <button id="micBtn" onclick="toggleMic()">🎤</button>
+      </div>
+      <input id="textInput" type="text" placeholder='Hey BETATESTER, command do...' onkeydown="if(event.key==='Enter')sendMsg()">
+      <button id="sendBtn" onclick="sendMsg()">➤</button>
+    </div>
+    <div id="inputHint">🎤 "Google search karo" • "WhatsApp bhejo" • "Email send karo" • "Phone lock karo"</div>
+
+    <!-- Home Bar -->
+    <div id="homeBar"><div id="homeBarLine"></div></div>
+  </div>
+
+</div>
+
+<!-- ══ GOOGLE MODAL ══ -->
+<div class="modal" id="googleModal">
+  <div id="googleHeader">
+    <div id="googleSearchBar">
+      <span>🔍</span>
+      <span id="googleQuery"></span>
+      <button class="closeBtn" onclick="closeModal('googleModal')">✕</button>
+    </div>
+    <div id="googleTabs">
+      <span class="gTab active">All</span>
+      <span class="gTab">News</span>
+      <span class="gTab">Images</span>
+      <span class="gTab">Maps</span>
+    </div>
+  </div>
+  <div id="googleResults"></div>
+</div>
+
+<!-- ══ WHATSAPP MODAL ══ -->
+<div class="modal" id="waModal">
+  <div id="waHeader">
+    <button class="backBtn" onclick="closeModal('waModal')">←</button>
+    <span style="font-size:22px">💚</span>
+    <span style="color:#fff;font-weight:bold;font-size:16px;flex:1">WhatsApp</span>
+  </div>
+  <div id="waBody">
+    <div class="waCard">
+      <div class="waCardTitle">Kise bhejna hai?</div>
+      <div class="contacts" id="waContacts"></div>
+    </div>
+    <div class="waCard">
+      <div class="waCardTitle">Message:</div>
+      <textarea id="waMsgArea" placeholder="Message likho..."></textarea>
+    </div>
+    <div id="waSentMsg" class="sentMsg">✅ Message bheja ja raha hai...</div>
+    <button id="waSendBtn" class="disabled" onclick="sendWA()">📤 WhatsApp Send Karo</button>
+  </div>
+</div>
+
+<!-- ══ EMAIL MODAL ══ -->
+<div class="modal" id="emailModal">
+  <div id="emailHeader">
+    <button class="backBtn" onclick="closeModal('emailModal')">←</button>
+    <span style="color:#fff;font-weight:bold;font-size:16px;flex:1">📧 Gmail — Naya Email</span>
+  </div>
+  <div id="emailBody">
+    <div class="emailField">
+      <div class="emailLabel">Kise bhejein (To):</div>
+      <input class="emailInput" id="emailTo" placeholder="email@example.com">
+    </div>
+    <div class="emailField">
+      <div class="emailLabel">Subject:</div>
+      <input class="emailInput" id="emailSubject" placeholder="Subject likho...">
+    </div>
+    <div style="flex:1">
+      <div class="emailLabel">Message:</div>
+      <textarea id="emailBodyText" placeholder="Email body..."></textarea>
+    </div>
+    <div id="emailSentMsg" class="sentMsg" style="background:#34a853">✅ Email bheja ja raha hai...</div>
+    <button id="emailSendBtn" class="disabled" onclick="sendEmail()">📤 Email Send Karo</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+const AGENT = "BETATESTER";
+const CORRECT_PIN = ["1","2","3","4"];
+const WAKE_WORDS = ["betatester","beta tester","bita tester","betatest"];
+const CONTACTS = ["Rahul","Priya","Amit","Neha","Vikram","Sanjay"];
+const DIGITS_MAP = {zero:"0",one:"1",two:"2",three:"3",four:"4",five:"5",six:"6",seven:"7",eight:"8",nine:"9",ek:"1",do:"2",teen:"3",char:"4",paanch:"5",chhe:"6",saat:"7",aath:"8",nau:"9",shunya:"0"};
+
+const RESPONSES = {
+  wake:    ["Haan ji! Bol dijiye 😊","Ji! Kya kaam hai?","Hello! Command do!"],
+  call:    ["Calling kar raha hoon! Kise call karoon?","Phone dial ho raha hai..."],
+  camera:  ["Camera ON! 📸 Smile!","Photo lene ke liye taiyaar!"],
+  music:   ["Music player open! 🎶","Kaunsa gaana sunna hai?"],
+  alarm:   ["Alarm set! ⏰ Kab bajaye?","Alarm ready ho gaya!"],
+  wifi:    ["WiFi scan ho raha hai...","Network dhoondh raha hoon..."],
+  battery: ["Battery 72%! Charging ki zaroorat nahi.","Battery acchi hai! 🔋"],
+  weather: ["Aaj 28°C, dhoop hai! ☀️","Kal baarish ho sakti hai!"],
+  greet:   ["Namaste! Kya help chahiye?","Haan ji! Main hazir hoon! 🤖"],
+  help:    ["Main yeh sab kar sakta hoon:\n🔐 PIN unlock\n🔍 Google search\n💬 WhatsApp\n📧 Email\n📞 Call\n📷 Camera\n🎵 Music\n⏰ Alarm"],
+  lock:    ["Phone lock ho gaya! 🔒"],
+  default: ["Samajh gaya! 👍","Bilkul! Abhi karta hoon."],
+};
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let currentScreen = "lock";
+let pinEntered = [];
+let voicePin = [];
+let voiceOn = true;
+let alwaysOn = false;
+let isListening = false;
+let wakeDetected = false;
+let recognition = null;
+let alwaysRec = null;
+let selectedWAContact = "";
+
+// ══════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  const t = now.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  const t2 = now.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+  const d = now.toLocaleDateString("hi-IN",{weekday:"long",day:"numeric",month:"long"});
+  document.getElementById("statusTime").textContent = t;
+  document.getElementById("lockTime").textContent = t2;
+  document.getElementById("lockDate").textContent = d;
+}
+setInterval(updateClock,1000);
+updateClock();
+
+// ══════════════════════════════════════════════════
+// SPEECH SYNTHESIS
+// ══════════════════════════════════════════════════
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+function speak(text){
+  if(!voiceOn||!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang="hi-IN"; u.rate=0.95; u.pitch=1.1;
+  const hi = window.speechSynthesis.getVoices().find(v=>v.lang.includes("hi"));
+  if(hi) u.voice=hi;
+  window.speechSynthesis.speak(u);
+}
+
+// ══════════════════════════════════════════════════
+// CHAT
+// ══════════════════════════════════════════════════
+function addMsg(from,text,voice=false){
+  const chat = document.getElementById("chat");
+  const wrap = document.createElement("div");
+  wrap.className = "msgWrap "+(from==="user"?"user":"ai");
+  const b = document.createElement("div");
+  b.className = from==="user"?(voice?"bubble voice":"bubble user"):"bubble ai";
+  b.textContent = text;
+  const t = document.createElement("div");
+  t.className="msgTime";
+  t.textContent=(voice?"🎤 ":"")+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+  b.appendChild(t);
+  wrap.appendChild(b);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addAI(text, delay=1100){
+  document.getElementById("typingDots").style.display="block";
+  setTimeout(()=>{
+    document.getElementById("typingDots").style.display="none";
+    addMsg("ai",text);
+    speak(text);
+    document.getElementById("chat").scrollTop=99999;
+  },delay);
+}
+
+// ══════════════════════════════════════════════════
+// PIN LOGIC
+// ══════════════════════════════════════════════════
+function updatePinDots(arr,state){
+  for(let i=0;i<4;i++){
+    const d=document.getElementById("pd"+i);
+    d.className="pinDot";
+    if(state==="error") d.classList.add("error");
+    else if(state==="ok") d.classList.add("ok");
+    else if(arr[i]!==undefined) d.classList.add("filled");
+  }
+}
+
+function pressPin(d){
+  if(pinEntered.length>=4) return;
+  pinEntered.push(String(d));
+  updatePinDots(pinEntered,"");
+  if(pinEntered.length===4) checkPin(pinEntered);
+}
+
+function backspacePin(){
+  pinEntered.pop();
+  updatePinDots(pinEntered,"");
+}
+
+function checkPin(arr){
+  if(arr.join("")===CORRECT_PIN.join("")){
+    updatePinDots(arr,"ok");
+    setTimeout(()=>{
+      document.getElementById("lockScreen").style.display="none";
+      document.getElementById("homeScreen").style.display="flex";
+      document.getElementById("lockIcon").style.display="none";
+      currentScreen="home";
+      pinEntered=[];voicePin=[];
+      updatePinDots([],"");
+      addAI("Phone unlock ho gaya! Welcome 🎉",300);
+    },600);
+  } else {
+    updatePinDots(arr,"error");
+    document.getElementById("numpad").classList.add("pinShake");
+    addAI("Galat PIN! Dobara try karo 🔒",300);
+    setTimeout(()=>{
+      pinEntered=[];
+      updatePinDots([],"");
+      document.getElementById("numpad").classList.remove("pinShake");
+    },900);
+  }
+}
+
+function lockPhone(){
+  currentScreen="lock"; pinEntered=[];voicePin=[];
+  document.getElementById("homeScreen").style.display="none";
+  document.getElementById("lockScreen").style.display="flex";
+  document.getElementById("lockIcon").style.display="inline";
+  updatePinDots([],"");
+  document.getElementById("lockStatus").textContent="🔒 BETATESTER locked";
+}
+
+// ══════════════════════════════════════════════════
+// INTENT MATCHING
+// ══════════════════════════════════════════════════
+function hasWake(t){ return WAKE_WORDS.some(w=>t.toLowerCase().includes(w)); }
+function stripWake(t){ return WAKE_WORDS.reduce((s,w)=>s.replace(new RegExp(w,"gi"),""),t).replace(/hey|हे/gi,"").trim(); }
+function getRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function extractDigit(t){
+  const l=t.toLowerCase().trim();
+  if(/^\d$/.test(l)) return l;
+  return DIGITS_MAP[l]||null;
+}
+function matchIntent(t){
+  const l=t.toLowerCase();
+  if(/google|search|dhundho|khojo/.test(l)) return {type:"google",q:l.replace(/google|search|karo|dhundho|khojo|mein|me|par/g,"").trim()};
+  if(/whatsapp|whatsap|wa message/.test(l)) return {type:"whatsapp",m:l.replace(/whatsapp|whatsap|message|bhejo|karo|mein|me|par/g,"").trim()};
+  if(/email|mail|gmail/.test(l)) return {type:"email",m:l.replace(/email|mail|gmail|send|karo|bhejo|mein|me|par/g,"").trim()};
+  if(/call|phone|dial/.test(l)) return {type:"call"};
+  if(/camera|photo|selfie/.test(l)) return {type:"camera"};
+  if(/music|gaana|song|bajao/.test(l)) return {type:"music"};
+  if(/alarm|jagao|wake/.test(l)) return {type:"alarm"};
+  if(/wifi|internet/.test(l)) return {type:"wifi"};
+  if(/battery|charge/.test(l)) return {type:"battery"};
+  if(/weather|mausam/.test(l)) return {type:"weather"};
+  if(/lock|band karo/.test(l)) return {type:"lock"};
+  if(/namaste|hello/.test(l)) return {type:"greet"};
+  if(/help|kya kar/.test(l)) return {type:"help"};
+  return {type:"default"};
+}
+
+// ══════════════════════════════════════════════════
+// PROCESS COMMAND
+// ══════════════════════════════════════════════════
+function processCmd(text, isVoice=false){
+  if(isVoice) addMsg("user","🎤 \""+text+"\"",true);
+  const i = matchIntent(text);
+  if(i.type==="google")   { addAI("Google par search kar raha hoon... 🔍",600); setTimeout(()=>openGoogle(i.q),1200); return; }
+  if(i.type==="whatsapp") { addAI("WhatsApp khol raha hoon! 💚",600); setTimeout(()=>openWhatsApp(i.m),1200); return; }
+  if(i.type==="email")    { addAI("Gmail khol raha hoon! 📧",600); setTimeout(()=>openEmail(i.m),1200); return; }
+  if(i.type==="lock")     { lockPhone(); addAI(getRandom(RESPONSES.lock),300); return; }
+  const arr = RESPONSES[i.type]||RESPONSES.default;
+  addAI(getRandom(arr));
+}
+
+// ══════════════════════════════════════════════════
+// VOICE HANDLER
+// ══════════════════════════════════════════════════
+function handleVoice(text){
+  const l=text.toLowerCase().trim();
+  if(currentScreen==="lock"){
+    const digit=extractDigit(l);
+    if(hasWake(l)){ addMsg("user","🎤 \""+text+"\"",true); addAI("Haan ji! PIN digits bolo — ek ek kar ke.",400); return; }
+    if(/reset|clear|hatao/.test(l)){ voicePin=[]; document.getElementById("voicePin").textContent="🎤 PIN reset — dobara shuru karo"; return; }
+    if(digit!==null){
+      voicePin.push(digit);
+      pinEntered.push(digit);
+      updatePinDots(pinEntered,"");
+      document.getElementById("voicePin").textContent="🎤 Voice PIN: "+voicePin.join("-")+" ("+voicePin.length+"/4)";
+      if(voicePin.length===4){ const p=[...voicePin]; voicePin=[]; checkPin(p); }
+      return;
+    }
+    return;
+  }
+  // HOME screen
+  if(hasWake(l)){
+    addMsg("user","🎤 \""+text+"\"",true);
+    triggerWake();
+    const rest=stripWake(l);
+    if(rest.length>2) setTimeout(()=>processCmd(rest,false),1400);
+    return;
+  }
+  processCmd(text,true);
+}
+
+function triggerWake(){
+  wakeDetected=true;
+  document.getElementById("wakeBanner").style.display="block";
+  document.getElementById("avatar").style.animation="wakeGlow .6s ease-in-out infinite";
+  document.getElementById("agentName").style.animation="nameFlash .5s ease-in-out infinite";
+  document.getElementById("statusText").textContent="🟢 JAAG GAYA!";
+  speak(getRandom(RESPONSES.wake));
+  addAI(getRandom(RESPONSES.wake),400);
+  setTimeout(()=>{
+    wakeDetected=false;
+    document.getElementById("wakeBanner").style.display="none";
+    document.getElementById("avatar").style.animation="glow 2s ease-in-out infinite";
+    document.getElementById("agentName").style.animation="none";
+    document.getElementById("statusText").textContent="Ready";
+  },2500);
+}
+
+// ══════════════════════════════════════════════════
+// MIC & ALWAYS-ON
+// ══════════════════════════════════════════════════
+const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+let waveBarsBuilt=false;
+
+function buildWaveBars(){
+  if(waveBarsBuilt) return;
+  const c=document.getElementById("waveBars");
+  [6,12,20,26,32,26,20,12,6].forEach((h,i)=>{
+    const b=document.createElement("div");
+    b.className="waveBar";
+    b.id="wb"+i;
+    c.appendChild(b);
+  });
+  waveBarsBuilt=true;
+}
+
+function setWaveActive(active){
+  buildWaveBars();
+  const heights=[6,12,20,26,32,26,20,12,6];
+  document.getElementById("waveViz").style.display=active?"flex":"none";
+  document.getElementById("waveViz").style.borderTop=active?"1px solid rgba(255,60,60,.18)":"none";
+  document.getElementById("waveViz").style.background=active?"rgba(255,40,40,.07)":"transparent";
+  for(let i=0;i<9;i++){
+    const b=document.getElementById("wb"+i);
+    if(!b) continue;
+    if(active){ b.style.background="#ff5555"; b.style.height=heights[i]+"px"; b.style.animation=`wave .6s ease-in-out ${i*.07}s infinite alternate`; }
+    else { b.style.background="#00ff88"; b.style.height="4px"; b.style.animation="none"; }
+  }
+}
+
+function toggleMic(){
+  if(!SR){ alert("Aapka browser voice support nahi karta. Chrome use karein."); return; }
+  if(isListening){ recognition&&recognition.stop(); return; }
+  recognition = new SR();
+  recognition.lang="hi-IN"; recognition.continuous=false; recognition.interimResults=true;
+  recognition.onstart=()=>{ isListening=true; document.getElementById("micBtn").classList.add("listening"); document.getElementById("micBtn").textContent="⏹️"; setWaveActive(true); document.getElementById("statusText").textContent="👂 Sun raha hoon..."; };
+  recognition.onend=()=>{ isListening=false; document.getElementById("micBtn").classList.remove("listening"); document.getElementById("micBtn").textContent="🎤"; setWaveActive(false); document.getElementById("waveText").textContent="Bol dijiye... 🎙️"; document.getElementById("statusText").textContent=alwaysOn?`Hey ${AGENT}...`:"Ready"; };
+  recognition.onerror=()=>{ isListening=false; document.getElementById("micBtn").classList.remove("listening"); document.getElementById("micBtn").textContent="🎤"; setWaveActive(false); };
+  recognition.onresult=(e)=>{
+    let interim="",final="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    document.getElementById("waveText").textContent='"'+(interim||final)+'"';
+    if(final.trim()) handleVoice(final.trim());
+  };
+  try{ recognition.start(); }catch(e){}
+}
+
+function startAlways(){
+  if(!SR||!alwaysOn) return;
+  const ar=new SR();
+  ar.lang="hi-IN"; ar.continuous=false; ar.interimResults=false;
+  ar.onend=()=>{ if(alwaysOn) setTimeout(startAlways,300); };
+  ar.onerror=()=>{ if(alwaysOn) setTimeout(startAlways,500); };
+  ar.onresult=(e)=>{ handleVoice(e.results[0][0].transcript); };
+  alwaysRec=ar;
+  try{ ar.start(); }catch(e){}
+}
+
+function toggleAlways(){
+  alwaysOn=!alwaysOn;
+  const btn=document.getElementById("alwaysToggle");
+  if(alwaysOn){ btn.style.background="rgba(0,255,136,.1)"; btn.style.borderColor="rgba(0,255,136,.35)"; btn.style.color="#00ff88"; startAlways(); document.getElementById("statusText").textContent=`Hey ${AGENT}...`; }
+  else { alwaysRec&&alwaysRec.stop(); btn.style.background="rgba(255,255,255,.04)"; btn.style.borderColor="rgba(255,255,255,.08)"; btn.style.color="#555"; document.getElementById("statusText").textContent="Ready"; }
+}
+
+function toggleVoice(){
+  voiceOn=!voiceOn;
+  const btn=document.getElementById("voiceToggle");
+  btn.textContent=voiceOn?"🔊":"🔇";
+  if(voiceOn){ btn.style.background="rgba(0,255,136,.1)"; btn.style.borderColor="rgba(0,255,136,.35)"; btn.style.color="#00ff88"; }
+  else { btn.style.background="rgba(255,255,255,.04)"; btn.style.borderColor="rgba(255,255,255,.08)"; btn.style.color="#555"; window.speechSynthesis&&window.speechSynthesis.cancel(); }
+}
+
+function sendMsg(){
+  const inp=document.getElementById("textInput");
+  const txt=inp.value.trim(); if(!txt) return;
+  inp.value="";
+  if(currentScreen==="lock"){ addMsg("user",txt); handleVoice(txt); return; }
+  addMsg("user",txt);
+  if(hasWake(txt)){ triggerWake(); const rest=stripWake(txt); if(rest.length>2) setTimeout(()=>processCmd(rest,false),1400); return; }
+  processCmd(txt,false);
+}
+
+function quickCmd(cmd){
+  addMsg("user",cmd+" chalao");
+  const arr=RESPONSES[cmd]||RESPONSES.default;
+  addAI(getRandom(arr));
+}
+
+// ══════════════════════════════════════════════════
+// GOOGLE MODAL
+// ══════════════════════════════════════════════════
+function openGoogle(q){
+  document.getElementById("googleQuery").textContent=q||"Search...";
+  const res=document.getElementById("googleResults");
+  res.innerHTML=`<div class="gCount">Lagbhag 1,23,000 results (0.42 seconds)</div>`;
+  const data=[
+    {title:(q||"Search")+" - Wikipedia",url:"wikipedia.org",desc:(q||"Search")+" ke baare mein poori jaankari Wikipedia par milegi..."},
+    {title:(q||"Search")+" ke baare mein | Google",url:"google.com",desc:(q||"Search")+" se related top results aur news yahan milenge..."},
+    {title:(q||"Search")+" - Latest News",url:"news.google.com",desc:(q||"Search")+" ki taaza khabar aur latest updates yahan dekhein..."},
+    {title:(q||"Search")+" - YouTube",url:"youtube.com",desc:(q||"Search")+" se related videos YouTube par dekho..."},
+  ];
+  data.forEach(r=>{
+    res.innerHTML+=`<div class="gResult"><div class="gUrl">🌐 ${r.url}</div><div class="gTitle">${r.title}</div><div class="gDesc">${r.desc}</div></div>`;
+  });
+  document.getElementById("googleModal").classList.add("open");
+}
+
+// ══════════════════════════════════════════════════
+// WHATSAPP MODAL
+// ══════════════════════════════════════════════════
+function openWhatsApp(msg){
+  selectedWAContact="";
+  document.getElementById("waMsgArea").value=msg||"";
+  document.getElementById("waSentMsg").style.display="none";
+  document.getElementById("waSendBtn").className="disabled";
+  const c=document.getElementById("waContacts");
+  c.innerHTML="";
+  CONTACTS.forEach(name=>{
+    const btn=document.createElement("button");
+    btn.className="contactBtn unsel";
+    btn.textContent=name;
+    btn.onclick=()=>{
+      selectedWAContact=name;
+      document.querySelectorAll(".contactBtn").forEach(b=>b.className="contactBtn unsel");
+      btn.className="contactBtn sel";
+      document.getElementById("waSendBtn").className=selectedWAContact&&document.getElementById("waMsgArea").value?"":"disabled";
+    };
+    c.appendChild(btn);
+  });
+  document.getElementById("waMsgArea").oninput=()=>{
+    document.getElementById("waSendBtn").className=selectedWAContact&&document.getElementById("waMsgArea").value?"":"disabled";
+  };
+  document.getElementById("waModal").classList.add("open");
+}
+
+function sendWA(){
+  if(!selectedWAContact||!document.getElementById("waMsgArea").value) return;
+  document.getElementById("waSentMsg").style.display="block";
+  document.getElementById("waSendBtn").style.display="none";
+  const msg=document.getElementById("waMsgArea").value;
+  setTimeout(()=>{
+    closeModal("waModal");
+    addAI(`WhatsApp message "${msg.slice(0,30)}" — ${selectedWAContact} ko bhej diya! ✅`);
+  },1500);
+}
+
+// ══════════════════════════════════════════════════
+// EMAIL MODAL
+// ══════════════════════════════════════════════════
+function openEmail(msg){
+  document.getElementById("emailTo").value="";
+  document.getElementById("emailSubject").value="";
+  document.getElementById("emailBodyText").value=msg||"";
+  document.getElementById("emailSentMsg").style.display="none";
+  document.getElementById("emailSendBtn").className="disabled";
+  const check=()=>{ document.getElementById("emailSendBtn").className=document.getElementById("emailTo").value&&document.getElementById("emailBodyText").value?"":"disabled"; };
+  document.getElementById("emailTo").oninput=check;
+  document.getElementById("emailBodyText").oninput=check;
+  document.getElementById("emailModal").classList.add("open");
+}
+
+function sendEmail(){
+  const to=document.getElementById("emailTo").value;
+  const body=document.getElementById("emailBodyText").value;
+  if(!to||!body) return;
+  document.getElementById("emailSentMsg").style.display="block";
+  document.getElementById("emailSendBtn").style.display="none";
+  const subj=document.getElementById("emailSubject").value||body.slice(0,20);
+  setTimeout(()=>{
+    closeModal("emailModal");
+    addAI(`Email "${subj}" — ${to} ko bhej diya! 📧✅`);
+  },1500);
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove("open"); }
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+window.onload=()=>{
+  addAI(`Namaste! Main ${AGENT} hoon 🤖\n\n🔐 Pehle phone unlock karo!\nPIN: 1-2-3-4\nYa 🎤 Mic dabao aur bolein: "ek" "do" "teen" "char"`,600);
+};
+</script>
+</body>
+</html>
